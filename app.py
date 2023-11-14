@@ -51,13 +51,26 @@ class MusicFrame(customtkinter.CTkFrame):
             self.app.response_label.configure(text='')
             self.app.pause_button.configure(state='disabled')
 
+class SFXFrame(customtkinter.CTkFrame):
+    def __init__(self, app, master):
+        super().__init__(master)
+        self.app: App = app
+        self.sfx = {}
+        self.sfx_frame = customtkinter.CTkScrollableFrame(self, label_text='Sound Effects')
+        self.sfx_frame.grid(row=0, column=0)
+
+    def add_sfx(self, name, path):
+        button = customtkinter.CTkButton(self.sfx_frame, text=name, 
+                                         command=functools.partial(self.app.play_sfx, path=path))
+        button.grid(row=len(self.sfx), column=0)
+        self.sfx[name] = button
+
 class App(customtkinter.CTk):
     def __init__(self, loop: asyncio.AbstractEventLoop):
         super().__init__()
 
         self.loop = loop
-        self.music_voice_client = None
-        self.sfx_voice_client = None
+        self.voice_client = None
         self.protocol('WM_DELETE_WINDOW', lambda: loop.create_task(self.close()))
         self.title('Parama Bot')
         self.geometry('800x400')
@@ -86,31 +99,39 @@ class App(customtkinter.CTk):
         self.music_frame.add_song('Save Me', 'music/session0/saveme.mp3')
         self.music_frame.add_song('Scarlet Police', 'music/session0/ghettopatrol.mp3')
         self.music_frame.add_song('Idk', 'music/session0/audio.mp3')
-        self.music_frame.add_song('Rampage', 'sfx/session0/rampage.mp3')
+        self.sfx_frame = SFXFrame(self, self.controls_frame)
+        self.sfx_frame.grid(row=1, column=3, columnspan=1)
+        self.sfx_frame.add_sfx('Section Fail', 'sfx/session0/sectionfail.mp3')
+        self.sfx_frame.add_sfx('Section Pass', 'sfx/session0/sectionpass.mp3')
+        self.sfx_frame.add_sfx('Rampage', 'sfx/session0/rampage.mp3')
+
 
         self.response_label = customtkinter.CTkLabel(self, text='')
         self.response_label.grid(row=3, column=0, columnspan=4)
 
     def pause_song(self):
-        pause_playing(self.music_voice_client)
+        pause_playing(self.voice_client)
         self.pause_button.configure(text='Resume', command=self.resume_song)
         
     def resume_song(self):
-        resume_playing(self.music_voice_client)
+        resume_playing(self.voice_client)
         self.pause_button.configure(text='Pause', command=self.pause_song)
 
     def play_song(self, path: str):
-        self.play_audio(self.music_voice_client, path, 
-                        after=functools.partial(after_callback, app=self, loop=self.loop))
+        self._play_audio(self.voice_client, path, 
+                        after=functools.partial(_after_callback, app=self, loop=self.loop))
         self.pause_button.configure(text='Pause', state='normal', command=self.pause_song)
 
+    def play_sfx(self, path: str):
+        self._play_audio(self.voice_client, path)
+
     def clear_queue(self):
-        stop_playing(self.music_voice_client)
+        stop_playing(self.voice_client)
         self.music_frame.clear_queue()
         self.pause_button.configure(text='Pause', state='disabled', command=self.pause_song)
         self.response_label.configure(text='')
 
-    def play_audio(self, voice_client: discord.VoiceClient, file_path: str, after: Callable=None):
+    def _play_audio(self, voice_client: discord.VoiceClient, file_path: str, after: Callable=None):
         if os.path.isfile(file_path):
             if voice_client:
                 if play_audio_file(voice_client, file_path=file_path, after=after):
@@ -129,24 +150,22 @@ class App(customtkinter.CTk):
             self.connection_label.configure(text=f'Error parsing channel ID: {channel_id}')
 
     async def connect_to_channel(self, channel_id: int):
-        if self.music_voice_client or self.sfx_voice_client:
+        if self.voice_client:
             await self.disconnect()
 
-        voice_clients = await join_voice(channel_id)
-        if voice_clients:
-            self.music_voice_client = voice_clients[0]
-            self.sfx_voice_client = voice_clients[1]
-            self.connection_label.configure(text=f'Connected to server {voice_clients[0].guild.name} in channel {voice_clients[0].channel.name}')
+        voice_client = await join_voice(channel_id)
+        if voice_client:
+            self.voice_client = voice_client
+            self.connection_label.configure(text=f'Connected to server {voice_client.guild.name} in channel {voice_client.channel.name}')
             self.controls_frame.grid(row=2, column=0, columnspan=4)
         else:
             self.connection_label.configure(text=f'Error connecting to channel ID: {channel_id}')
 
     async def disconnect(self):
         self.clear_queue()
-        if self.music_voice_client:
-            await self.music_voice_client.disconnect()
-        if self.sfx_voice_client:
-            await self.sfx_voice_client.disconnect()
+        if self.voice_client:
+            await self.voice_client.disconnect()
+            self.voice_client = None
         self.controls_frame.grid_forget()
         self.connection_label.configure(text='')
 
@@ -157,13 +176,13 @@ class App(customtkinter.CTk):
             await asyncio.sleep(1/128)
     
     async def close(self):
-        if self.music_voice_client:
-            await self.music_voice_client.disconnect()
-        if self.sfx_voice_client:
-            await self.sfx_voice_client.disconnect()
+        if self.voice_client:
+            await self.voice_client.disconnect()
         self.loop.stop()
 
-# Callback for continuing to next song, used to allow calling from
-# a separate thread from the main GUI thread.
-def after_callback(_, app: App, loop: asyncio.AbstractEventLoop):
+""" 
+Callback for continuing to next song, used to allow calling from
+a separate event loop (i.e. discord client) to the app GUI event loop.
+"""
+def _after_callback(_, app: App, loop: asyncio.AbstractEventLoop):
     loop.create_task(app.music_frame.next_song())
