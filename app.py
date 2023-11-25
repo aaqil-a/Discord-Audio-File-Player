@@ -1,6 +1,6 @@
 import customtkinter
 import asyncio
-from bot import join_voice, play_audio_file, stop_playing, pause_playing, resume_playing
+from bot import join_voice, play_audio_file, stop_playing, pause_playing, resume_playing, skip
 import os
 import discord
 from typing import Callable
@@ -94,17 +94,23 @@ class App(customtkinter.CTk):
         self.pause_button.grid(row=0, column=0)
         self.stop_button = customtkinter.CTkButton(self.controls_frame, text='Clear Queue', command=self.clear_queue)
         self.stop_button.grid(row=0, column=1)
+        self.skip_button = customtkinter.CTkButton(self.controls_frame, text='Skip', command=self.skip)
+        self.skip_button.grid(row=0, column=2)
+
         self.music_frame = MusicFrame(self, self.controls_frame)
         self.music_frame.grid(row=1, column=0, columnspan=3)
-        self.music_frame.add_song('Save Me', 'music/session0/saveme.mp3')
-        self.music_frame.add_song('Scarlet Police', 'music/session0/ghettopatrol.mp3')
-        self.music_frame.add_song('Idk', 'music/session0/audio.mp3')
+
+        self.music_frame.add_song('Marketplace', 'alphatesting/marketplace.mp3')
+        self.music_frame.add_song('Combat', 'alphatesting/combat.mp3')
+        self.music_frame.add_song('Desert', 'alphatesting/desert.mp3')
+
         self.sfx_frame = SFXFrame(self, self.controls_frame)
         self.sfx_frame.grid(row=1, column=3, columnspan=1)
-        self.sfx_frame.add_sfx('Section Fail', 'sfx/session0/sectionfail.mp3')
-        self.sfx_frame.add_sfx('Section Pass', 'sfx/session0/sectionpass.mp3')
-        self.sfx_frame.add_sfx('Rampage', 'sfx/session0/rampage.mp3')
 
+        self.sfx_frame.add_sfx('Soldiers Marching', 'alphatesting/soldiersfx.mp3')
+        self.sfx_frame.add_sfx('Door Creaking', 'alphatesting/doorcreak.mp3')
+        self.sfx_frame.add_sfx('Smoke of Deceit', 'alphatesting/sod.mp3')
+        self.sfx_frame.add_sfx('Thunder', 'alphatesting/thunder.mp3')
 
         self.response_label = customtkinter.CTkLabel(self, text='')
         self.response_label.grid(row=3, column=0, columnspan=4)
@@ -131,12 +137,15 @@ class App(customtkinter.CTk):
         self.pause_button.configure(text='Pause', state='disabled', command=self.pause_song)
         self.response_label.configure(text='')
 
+    def skip(self):
+        skip(self.voice_client) # SFX Skipped
+
     def _play_audio(self, voice_client: discord.VoiceClient, file_path: str, after: Callable=None):
         if os.path.isfile(file_path):
             if voice_client:
-                if play_audio_file(voice_client, file_path=file_path, after=after):
-                    self.response_label.configure(text=f'Now playing: {file_path}') 
-                    return
+                play_audio_file(voice_client, file_path=file_path, after=after)
+                self.response_label.configure(text=f'Now playing: {file_path}') 
+                return
             self.response_label.configure(text=f'Error playing audio: {file_path}')
         else:
             self.response_label.configure(text=f'Error retrieving file: {file_path}')

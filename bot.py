@@ -11,6 +11,7 @@ class OverlayingFFmpegPCMAudio(discord.FFmpegPCMAudio):
     def __init__(self, path):
         super().__init__(source=path)
         self._second_stdout = None
+        self.overlaying = False
 
     def overlay(self, path):
         # From discord.FFmpegPCMAudio
@@ -18,21 +19,24 @@ class OverlayingFFmpegPCMAudio(discord.FFmpegPCMAudio):
         kwargs = {'stdout': subprocess.PIPE, 'stdin': subprocess.DEVNULL, 'stderr': None}
         process = self._spawn_process(args, **kwargs)
         self._second_stdout = process.stdout
-
+        self.overlaying = True
+    
+    def skip(self):
+        if self.overlaying:
+            self.overlaying = False
+            self._second_stdout = None
+            return True
+        return False
+            
     def read(self):
-        ret = self._stdout.read(OpusEncoder.FRAME_SIZE)
-
-        if self._second_stdout:
-            ret_second = self._second_stdout.read(OpusEncoder.FRAME_SIZE)
-            if len(ret_second) != OpusEncoder.FRAME_SIZE:
+        if self.overlaying:
+            ret = self._second_stdout.read(OpusEncoder.FRAME_SIZE)
+            if len(ret) != OpusEncoder.FRAME_SIZE:
+                self.overlaying = False
                 self._second_stdout = None
-            elif len(ret) != OpusEncoder.FRAME_SIZE:
-                self._stdout = self._second_stdout
-                self._second_stdout = None
-                ret = ret_second
-            else:
-                # Overlay audio
-                ret = add_audio_bytes(ret, ret_second, OpusEncoder.SAMPLE_SIZE)
+                ret = self._stdout.read(OpusEncoder.FRAME_SIZE) 
+        else:
+            ret = self._stdout.read(OpusEncoder.FRAME_SIZE) 
 
         if len(ret) != OpusEncoder.FRAME_SIZE:
             return b''
@@ -43,7 +47,7 @@ def play_audio_file(voice_client: discord.VoiceClient, file_path: str, after: Ca
         source = voice_client._player.source
         if isinstance(source, OverlayingFFmpegPCMAudio):
             source.overlay(file_path)
-            return True
+            return
     source = OverlayingFFmpegPCMAudio(file_path)
     voice_client.play(source, after=after)
 
@@ -58,6 +62,16 @@ def pause_playing(voice_client: discord.VoiceClient):
 def resume_playing(voice_client: discord.VoiceClient):
     if voice_client.is_paused():
         voice_client.resume()
+
+def skip(voice_client: discord.VoiceClient):
+    if voice_client.is_playing():
+        source = voice_client._player.source
+        if isinstance(source, OverlayingFFmpegPCMAudio):
+            if source.overlaying:
+                source.overlaying = False
+                source._second_stdout = None  
+                return
+        voice_client._player.stop()
 
 async def join_voice(channel_id: int):
     channel = bot.get_channel(channel_id)
