@@ -3,7 +3,6 @@ import subprocess
 
 from discord.opus import Encoder as OpusEncoder
 from typing import Callable
-from utils import add_audio_bytes
 
 bot = discord.Client(intents=discord.Intents.default())
 

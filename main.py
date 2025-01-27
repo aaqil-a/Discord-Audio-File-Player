@@ -3,9 +3,6 @@ from app import App
 from config import TOKEN
 import asyncio
 
-# TODO Create UI to select music and sfx folders and play audio files from them.
-# TODO Image viewer
-
 async def start_app(loop: asyncio.AbstractEventLoop):
     await bot.wait_until_ready()
     app = App(loop)

@@ -6,6 +6,9 @@ import discord
 from typing import Callable
 import functools
 
+MUSIC_DIR = 'music'
+SFX_DIR = 'sfx'
+
 class MusicFrame(customtkinter.CTkFrame):
     def __init__(self, app, master):
         super().__init__(master)
@@ -100,17 +103,15 @@ class App(customtkinter.CTk):
         self.music_frame = MusicFrame(self, self.controls_frame)
         self.music_frame.grid(row=1, column=0, columnspan=3)
 
-        self.music_frame.add_song('Marketplace', 'alphatesting/marketplace.mp3')
-        self.music_frame.add_song('Combat', 'alphatesting/combat.mp3')
-        self.music_frame.add_song('Desert', 'alphatesting/desert.mp3')
+       
+        for name in os.listdir(MUSIC_DIR):
+            self.music_frame.add_song(name, os.path.join(MUSIC_DIR, name))
 
         self.sfx_frame = SFXFrame(self, self.controls_frame)
         self.sfx_frame.grid(row=1, column=3, columnspan=1)
 
-        self.sfx_frame.add_sfx('Soldiers Marching', 'alphatesting/soldiersfx.mp3')
-        self.sfx_frame.add_sfx('Door Creaking', 'alphatesting/doorcreak.mp3')
-        self.sfx_frame.add_sfx('Smoke of Deceit', 'alphatesting/sod.mp3')
-        self.sfx_frame.add_sfx('Thunder', 'alphatesting/thunder.mp3')
+        for name in os.listdir(SFX_DIR):
+            self.sfx_frame.add_sfx(name, os.path.join(SFX_DIR, name))
 
         self.response_label = customtkinter.CTkLabel(self, text='')
         self.response_label.grid(row=3, column=0, columnspan=4)

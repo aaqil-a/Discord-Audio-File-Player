@@ -1,6 +1,4 @@
 config.py
 /env
+/venv
 /__pycache__
-/music
-/sfx
-/alphatesting
